@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Gradescope → Google Calendar Sync
 // @namespace    gradescope-gcal-sync
-// @version      1.1.0
+// @version      1.2.0
 // @description  Syncs your Gradescope due dates to Google Calendar and adds a Classroom-style to-do list to Gradescope.
 // @match        https://www.gradescope.com/*
 // @grant        GM_xmlhttpRequest
@@ -398,14 +398,38 @@
   // ---- Dashboard to-do ----
   let dashTodo = null;
   let dashTodoRoot = null;
+  let dashToggle = null;
+  let dashSummary = null;
+
+  function applyDashCollapsed() {
+    const collapsed = GM_getValue('todoCollapsed', false);
+    dashTodoRoot.hidden = collapsed;
+    dashTodo.classList.toggle('gcs-collapsed', collapsed);
+    dashToggle.setAttribute('aria-expanded', String(!collapsed));
+  }
+
+  function renderDashSummary() {
+    if (!dashSummary || !state.assignments) return;
+    const { upcoming, missing } = categorize(state.assignments);
+    dashSummary.textContent = `${upcoming.length} upcoming · ${missing.length} missing`;
+  }
 
   function mountDashboardTodo() {
     const anchor = document.querySelector('.courseList');
     if (!anchor || !GM_getValue('showDashboardTodo', true)) return false;
     if (!dashTodo) {
-      dashTodoRoot = h('div', { class: 'gcs-todo' });
+      dashTodoRoot = h('div', { class: 'gcs-todo', id: 'gcs-dash-todo' });
+      dashSummary = h('span', { class: 'gcs-dash-summary' });
+      dashToggle = h('button', {
+        class: 'gcs-dash-toggle', 'aria-controls': 'gcs-dash-todo',
+        onclick: () => {
+          GM_setValue('todoCollapsed', !GM_getValue('todoCollapsed', false));
+          applyDashCollapsed();
+        },
+      }, h('span', { class: 'gcs-chevron', 'aria-hidden': 'true' }, '▾'), 'To-do');
       dashTodo = h('section', { class: 'gcs-dash', 'aria-label': 'To-do' },
-        h('h2', { class: 'gcs-dash-title' }, 'To-do'), dashTodoRoot);
+        h('h2', { class: 'gcs-dash-title' }, dashToggle, dashSummary), dashTodoRoot);
+      applyDashCollapsed();
     }
     anchor.before(dashTodo);
     todoRoots.add(dashTodoRoot);
@@ -561,6 +585,7 @@
 
   function rerender() {
     for (const root of todoRoots) renderTodo(root);
+    renderDashSummary();
     renderPanelStatus();
     updateBadge();
   }
@@ -576,12 +601,13 @@
     document.head.append(h('style', null, `
       .gcs-fab, .gcs-panel, .gcs-dash, .gcs-toast { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1f2328; box-sizing: border-box; }
       .gcs-panel *, .gcs-dash *, .gcs-toast * { box-sizing: border-box; }
-      .gcs-fab { position: fixed; right: 16px; bottom: 16px; z-index: 2147483646; width: 48px; height: 48px; border-radius: 50%; border: none; background: #0f766e; color: #fff; font-size: 22px; box-shadow: 0 4px 14px rgba(0,0,0,.25); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+      /* Sits in Gradescope's left sidebar, just above the Account menu. */
+      .gcs-fab { position: fixed; left: 20px; bottom: 84px; z-index: 2147483646; width: 48px; height: 48px; border-radius: 50%; border: none; background: #0f766e; color: #fff; font-size: 22px; box-shadow: 0 4px 14px rgba(0,0,0,.25); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
       .gcs-fab:hover { background: #115e59; }
       .gcs-fab:focus-visible, .gcs-panel button:focus-visible, .gcs-dash button:focus-visible, .gcs-item-main:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }
       .gcs-fab-badge { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: #b3261e; color: #fff; font: 600 12px/20px system-ui, sans-serif; text-align: center; }
       .gcs-fab-badge[hidden], .gcs-panel[hidden] { display: none; }
-      .gcs-panel { position: fixed; right: 16px; bottom: 76px; z-index: 2147483646; width: 380px; max-width: calc(100vw - 32px); max-height: calc(100vh - 100px); overflow: auto; background: #fff; border: 1px solid #d0d7de; border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.2); }
+      .gcs-panel { position: fixed; left: 16px; bottom: 144px; z-index: 2147483646; width: 380px; max-width: calc(100vw - 32px); max-height: calc(100vh - 160px); overflow: auto; background: #fff; border: 1px solid #d0d7de; border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.2); }
       .gcs-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #eaeef2; position: sticky; top: 0; background: #fff; z-index: 1; }
       .gcs-sync { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #eaeef2; font-size: 13px; color: #57606a; }
       .gcs-sync-status { flex: 1; }
@@ -627,9 +653,16 @@
       .gcs-msg { font-size: 12.5px; }
       .gcs-check-label { font-size: 13px; color: #1f2328; display: flex; align-items: center; gap: 6px; margin: 0; font-weight: normal; }
       .gcs-dash { background: #fff; border: 1px solid #d0d7de; border-radius: 10px; margin: 0 0 24px; max-width: 760px; overflow: hidden; }
-      .gcs-dash-title { margin: 0; padding: 12px 14px 0; font-size: 16px; font-weight: 700; }
+      .gcs-dash-title { margin: 0; padding: 6px 8px 0; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+      .gcs-dash.gcs-collapsed .gcs-dash-title { padding-bottom: 6px; }
+      .gcs-dash-toggle { border: none; background: none; font: 700 16px system-ui, sans-serif; color: #1f2328; padding: 6px 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+      .gcs-dash-toggle:hover { background: #f0f3f6; }
+      .gcs-chevron { display: inline-block; font-size: 14px; color: #57606a; transition: transform .15s; }
+      .gcs-collapsed .gcs-chevron { transform: rotate(-90deg); }
+      .gcs-dash-summary { font-size: 13px; font-weight: 400; color: #57606a; }
+      .gcs-dash:not(.gcs-collapsed) .gcs-dash-summary { display: none; }
       .gcs-dash .gcs-todo-body { max-height: 360px; overflow: auto; }
-      .gcs-toast { position: fixed; right: 76px; bottom: 16px; z-index: 2147483647; max-width: 360px; padding: 10px 14px; border-radius: 8px; color: #fff; background: #1f6f43; box-shadow: 0 4px 14px rgba(0,0,0,.25); cursor: pointer; font-size: 13px; }
+      .gcs-toast { position: fixed; left: 80px; bottom: 84px; z-index: 2147483647; max-width: 360px; padding: 10px 14px; border-radius: 8px; color: #fff; background: #1f6f43; box-shadow: 0 4px 14px rgba(0,0,0,.25); cursor: pointer; font-size: 13px; }
       .gcs-toast-err { background: #b3261e; }
     `));
   }
