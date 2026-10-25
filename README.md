@@ -23,21 +23,38 @@ Every time you open Gradescope (at most once per 30 min), a Tampermonkey userscr
 ### 2. Userscript (the Gradescope side)
 1. In Tampermonkey: **Create a new script**, paste [gradescope-gcal-sync.user.js](gradescope-gcal-sync.user.js), and save.
    On Chrome, also turn on **Allow User Scripts** for Tampermonkey in `chrome://extensions` → Tampermonkey → Details.
-2. Open <https://www.gradescope.com>. Two browser prompts pop up, one after the other:
-   1. **"paste your Apps Script web app URL"**: paste the Web app URL from step 1.6 (it looks like `https://script.google.com/macros/s/AKfy…/exec`) → **OK**.
-   2. **"paste the SECRET_KEY you set in Code.gs"**: paste the exact string you set in step 1.3 → **OK**.
+2. Open <https://www.gradescope.com>. A **📅 button** appears in the bottom-right corner, and the first time its panel opens on its own with a **Set up calendar sync** form:
+   1. **Apps Script web app URL**: paste the Web app URL from step 1.6 (it looks like `https://script.google.com/macros/s/AKfy…/exec`).
+   2. **Secret key**: paste the exact string you set as `SECRET_KEY` in step 1.3.
+   3. Click **Save**. The first sync starts right away, and a green popup shows how many events were created.
 
-   You don't edit the userscript file for these. Tampermonkey saves both values and doesn't ask again. If you press Cancel, the prompts come back the next time you open Gradescope.
-3. Click the Tampermonkey icon → **👀 Preview scraped assignments** to check that it found your assignments, then **🔄 Sync now**. A green popup in the corner should show how many events were created.
+   You don't edit the userscript file for these. Tampermonkey saves both values.
+3. Check the **Upcoming** tab in the panel to confirm it found your assignments.
 
-**To change the URL or key later** (for example, after making a new deployment instead of a new version, or changing `SECRET_KEY`): Tampermonkey icon → **⚙️ Change Apps Script URL / key**, then paste the new values into the same two prompts.
+**To change the URL or key later** (for example, after making a new deployment instead of a new version, or changing `SECRET_KEY`): click **📅 → Settings**, update the fields, and click **Save**.
 
 **If sync fails with "Wrong secret key"**, the key in Tampermonkey doesn't exactly match `SECRET_KEY` in Code.gs. Check for extra spaces, or make sure you deployed a new version after changing it. **If it fails with "Unexpected response"**, the URL is wrong or the deployment's access isn't set to **Anyone**.
 
 After that it's automatic.
 
+## Using it
+
+**The 📅 button** (on every Gradescope page) opens a panel with:
+- the last sync result and a **Sync now** button
+- your to-do list
+- **Settings**: Apps Script URL, secret key, and whether to show the to-do on the home page
+
+A red number on the button counts work that's missing or due within 24 hours. A **!** means sync needs setup or the last sync failed.
+
+**The to-do list** also appears at the top of the Gradescope home page, similar to Google Classroom's to-do:
+- **Upcoming**: unsubmitted work, grouped into Today / Tomorrow / This week / Later. Times within 24 hours show in red.
+- **Missing**: past-due work you haven't submitted. **Late OK** means the late deadline hasn't passed yet. **Missing** means it's fully closed.
+- **Done**: work submitted in the last 14 days.
+
+Click an assignment to open it. Click **✓** to mark something done yourself, which is useful for in-class exams or optional work that never shows "Submitted". It moves to Done, gets a ✅ on your calendar at the next sync, and can be undone from the Done tab. Use **↻** to re-read Gradescope right away; otherwise the list refreshes every 5 minutes.
+
 ## Notes
 - **Editing Code.gs later:** do **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**. The URL stays the same. Just saving doesn't update the live web app.
 - **Settings** are at the top of each file: sync interval, lookback window, event length, ✅ marking.
 - **Deleted assignments** are left alone on your calendar. If you delete an event yourself, the next sync recreates it.
-- **If the preview finds 0 assignments** while you're logged in, Gradescope probably changed its page layout. The selectors are in `getCourses` / `parseAssignments`.
+- **If the to-do finds 0 assignments** while you're logged in, Gradescope probably changed its page layout. The selectors are in `getCourses` / `parseAssignments`.
